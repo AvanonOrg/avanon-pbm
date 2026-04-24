@@ -1,0 +1,67 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  --bg: #212121;
+  --sidebar-bg: #171717;
+  --bubble-bg: #2f2f2f;
+  --input-bg: #2f2f2f;
+  --input-border: #3f3f3f;
+  --text: #ececec;
+  --muted: #8e8ea0;
+  --dimmed: #6b6b6b;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Scrollbar suppression */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Streaming cursor */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: "▍";
+  animation: cursor-blink 0.7s step-start infinite;
+  margin-left: 1px;
+  color: var(--muted);
+}
+
+/* Message slide-in */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg-enter { animation: slide-up 0.2s ease-out both; }
+
+/* Thinking dots */
+@keyframes thinking-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1); }
+}
+.thinking-dot { animation: thinking-dot 1.2s infinite ease-in-out; }
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Thinking bubble fade-out when done */
+@keyframes fade-out {
+  from { opacity: 1; max-height: 200px; }
+  to   { opacity: 0; max-height: 0; overflow: hidden; }
+}
+.thinking-bubble-done { animation: fade-out 0.4s ease-out 1.2s forwards; }
