@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
-import type { ChatMessage, ThinkingStep, DiscrepancyReport } from "../lib/types";
+import type { ChatMessage, ThinkingStep } from "../lib/types";
 import { streamMessage } from "../lib/api";
 import { ReportCard } from "./ReportCard";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 const SESSION_KEY = "pbm_session_id";
 
@@ -277,12 +277,7 @@ function MessageRow({ message }: { message: ChatMessage }) {
       )}
 
       {message.content && (
-        <div
-          className={`prose-dark${message.isStreaming ? " streaming-cursor" : ""}`}
-          style={{ fontSize: 15, lineHeight: 1.7 }}
-        >
-          <ReactMarkdown>{message.content}</ReactMarkdown>
-        </div>
+        <MarkdownRenderer content={message.content} isStreaming={message.isStreaming} />
       )}
 
       {!message.isStreaming && message.report && (

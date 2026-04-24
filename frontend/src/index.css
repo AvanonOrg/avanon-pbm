@@ -16,17 +16,19 @@ html, body, #root {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* ===== Blinking cursor for streaming text ===== */
+/* Target the ::after of the LAST block element so cursor appears inline within text */
 @keyframes cursor-blink {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
 }
-.streaming-cursor::after {
+.md-streaming > *:last-child::after,
+.md-streaming > *:last-child > *:last-child::after {
   content: "▍";
-  display: inline-block;
+  display: inline;
   margin-left: 1px;
-  vertical-align: baseline;
   animation: cursor-blink 0.7s step-start infinite;
   color: #ececec;
+  font-style: normal;
 }
 
 /* ===== Message slide-up fade-in ===== */
@@ -67,53 +69,11 @@ html, body, #root {
   pointer-events: none;
 }
 
-/* ===== Dark markdown (prose-dark) ===== */
-.prose-dark { color: #ececec; }
-.prose-dark p { margin-bottom: 10px; }
-.prose-dark p:last-child { margin-bottom: 0; }
-.prose-dark ul, .prose-dark ol { padding-left: 22px; margin-bottom: 10px; }
-.prose-dark li { margin-bottom: 4px; }
-.prose-dark h1, .prose-dark h2, .prose-dark h3 {
-  margin: 16px 0 8px;
-  font-weight: 600;
-  color: #ececec;
-}
-.prose-dark strong { color: #fff; font-weight: 600; }
-.prose-dark em { color: #c8c8c8; }
-.prose-dark a { color: #60a5fa; text-decoration: underline; }
-.prose-dark code {
-  background: #333;
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 13px;
-  font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
-  color: #e2c08d;
-}
-.prose-dark pre {
-  background: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 14px 16px;
-  overflow-x: auto;
-  margin: 10px 0;
-}
-.prose-dark pre code {
-  background: none;
-  padding: 0;
-  font-size: 13px;
-  color: #ececec;
-  border-radius: 0;
-}
-.prose-dark blockquote {
-  border-left: 3px solid #3f3f3f;
-  padding-left: 14px;
-  color: #8e8ea0;
-  margin: 10px 0;
-}
-.prose-dark hr {
-  border: none;
-  border-top: 1px solid #2f2f2f;
-  margin: 16px 0;
+/* ===== Markdown task list checkboxes (GFM) ===== */
+.md-streaming input[type="checkbox"],
+.md-done input[type="checkbox"] {
+  margin-right: 6px;
+  accent-color: #4ade80;
 }
 
 /* ===== Login form inputs ===== */
