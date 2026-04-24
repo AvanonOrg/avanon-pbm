@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
     ruflo_mcp_url: str = "https://mcpmarket.com/server/ruflo"
     nadac_api_url: str = "https://data.cms.gov/api/1/datastore/query/9778fb52-45c2-4df2-94f0-e3f5b50b8a8d/0"
-    claude_model: str = "claude-sonnet-4-6"
+    claude_model: str = "claude-opus-4-7"
 
     class Config:
         env_file = ".env"
