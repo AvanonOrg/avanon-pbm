@@ -27,6 +27,12 @@ export interface DiscrepancyReport {
   total_annual_savings_100_members: number;
 }
 
+export interface ThinkingStep {
+  tool: string;
+  step: string;
+  timestamp: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -35,6 +41,9 @@ export interface ChatMessage {
   report?: DiscrepancyReport;
   task_id?: string;
   task_status?: string;
+  isStreaming?: boolean;
+  thinkingSteps?: ThinkingStep[];
+  currentThinkingStep?: string;
 }
 
 export interface ChatResponse {
@@ -44,3 +53,9 @@ export interface ChatResponse {
   task_id?: string;
   task_status: string;
 }
+
+export type StreamEvent =
+  | { type: "thinking"; step: string; tool: string }
+  | { type: "text_delta"; delta: string }
+  | { type: "done"; reply: string; report?: DiscrepancyReport; task_id?: string; task_status: string }
+  | { type: "error"; message: string };

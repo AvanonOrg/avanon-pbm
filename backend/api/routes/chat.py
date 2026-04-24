@@ -1,11 +1,12 @@
 import uuid
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
-from storage.models import ChatRequest, ChatResponse
-from agents.orchestrator import handle_message
-from api.middleware.auth import get_tenant_id, get_current_user
-import asyncio
 import json
 import logging
+import asyncio
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
+from storage.models import ChatRequest, ChatResponse
+from agents.orchestrator import handle_message, handle_message_stream
+from api.middleware.auth import get_tenant_id, get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -19,6 +20,26 @@ async def chat(
     if not request.session_id:
         request.session_id = str(uuid.uuid4())
     return await handle_message(request.message, request.session_id, tenant_id)
+
+
+@router.post("/chat/stream")
+async def chat_stream_sse(
+    request: ChatRequest,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    if not request.session_id:
+        request.session_id = str(uuid.uuid4())
+
+    async def event_generator():
+        async for event in handle_message_stream(request.message, request.session_id, tenant_id):
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.websocket("/chat/stream/{session_id}")

@@ -15,7 +15,7 @@ export default function App() {
       <div>
         <button
           onClick={() => { clearAuth(); setAuthed(false); }}
-          style={{ position: "fixed", top: 12, right: 16, fontSize: 11, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", zIndex: 100 }}
+          style={{ position: "fixed", top: 12, right: 16, fontSize: 11, color: "#6b6b6b", background: "none", border: "none", cursor: "pointer", zIndex: 100 }}
         >
           Sign out
         </button>
@@ -39,21 +39,21 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f8fafc", fontFamily: "Inter, system-ui, sans-serif" }}>
-      <div style={{ background: "#fff", borderRadius: 12, padding: 40, width: 380, border: "1px solid #e2e8f0", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#212121", fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
+      <div style={{ background: "#1a1a1a", borderRadius: 12, padding: 40, width: 380, border: "1px solid #2f2f2f" }}>
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>💊</div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0f172a" }}>PBM Intelligence</h1>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>Sign in to access pass-through pricing analysis</p>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>💊</div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#ececec" }}>PBM Intelligence</h1>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#8e8ea0" }}>Sign in to access pass-through pricing analysis</p>
         </div>
-        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <input
             type="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            style={{ padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14, outline: "none" }}
+            className="login-input"
           />
           <input
             type="password"
@@ -61,19 +61,19 @@ export default function App() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            style={{ padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14, outline: "none" }}
+            className="login-input"
           />
           {error && <p style={{ margin: 0, fontSize: 13, color: "#ef4444" }}>{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            style={{ padding: "11px", background: loading ? "#94a3b8" : "#0f172a", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer" }}
+            style={{ padding: "11px", background: loading ? "#3a3a3a" : "#ececec", color: "#1a1a1a", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", marginTop: 2 }}
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        <p style={{ marginTop: 16, fontSize: 12, color: "#94a3b8", textAlign: "center" }}>
-          Demo: demo@avanon.ai / pbm2026!
+        <p style={{ marginTop: 16, fontSize: 12, color: "#4a4a4a", textAlign: "center" }}>
+          demo@avanon.ai / pbm2026!
         </p>
       </div>
     </div>

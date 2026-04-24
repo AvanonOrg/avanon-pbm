@@ -18,7 +18,7 @@ export function PricingTable({ drugs }: Props) {
     <div style={{ overflowX: "auto", marginTop: 12 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
-          <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+          <tr style={{ background: "#2a2a2a", textAlign: "left" }}>
             <th style={th}>Drug</th>
             <th style={th}>Qty</th>
             <th style={th}>NADAC (cost)</th>
@@ -31,10 +31,10 @@ export function PricingTable({ drugs }: Props) {
         </thead>
         <tbody>
           {drugs.map((d, i) => (
-            <tr key={i} style={{ borderBottom: "1px solid #e2e8f0" }}>
+            <tr key={i} style={{ borderBottom: "1px solid #2f2f2f" }}>
               <td style={td}>
-                <strong>{d.drug_name}</strong>
-                {d.strength && <span style={{ color: "#64748b" }}> {d.strength}</span>}
+                <strong style={{ color: "#ececec" }}>{d.drug_name}</strong>
+                {d.strength && <span style={{ color: "#8e8ea0" }}> {d.strength}</span>}
               </td>
               <td style={td}>{d.quantity}</td>
               <td style={td}>${d.nadac_total.toFixed(2)}</td>
@@ -51,7 +51,7 @@ export function PricingTable({ drugs }: Props) {
               <td style={{ ...td, color: FLAG_COLORS[d.flag], fontWeight: 600 }}>
                 {d.spread_pct.toFixed(0)}%
               </td>
-              <td style={{ ...td, color: "#16a34a", fontWeight: 600 }}>
+              <td style={{ ...td, color: "#4ade80", fontWeight: 600 }}>
                 ${d.annual_savings_100_members.toLocaleString()}
               </td>
               <td style={td}>
@@ -80,11 +80,12 @@ const th: React.CSSProperties = {
   padding: "8px 10px",
   fontWeight: 600,
   fontSize: 12,
-  color: "#475569",
+  color: "#8e8ea0",
   whiteSpace: "nowrap",
 };
 
 const td: React.CSSProperties = {
   padding: "8px 10px",
   verticalAlign: "top",
+  color: "#c8c8c8",
 };

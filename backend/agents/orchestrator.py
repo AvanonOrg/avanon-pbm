@@ -123,6 +123,116 @@ async def handle_message(user_message: str, session_id: str, tenant_id: str) -> 
         )
 
 
+def _tool_step_label(tool_name: str, tool_input: dict) -> str:
+    labels = {
+        "search_knowledge_base": lambda i: f"Searching knowledge base for {i.get('query', '')}…",
+        "fetch_nadac_baseline": lambda i: f"Fetching NADAC baseline for {i.get('drug_name', '')}…",
+        "search_drug_prices": lambda i: f"Searching drug prices for {i.get('drug_name', '')}…",
+        "create_monitoring_task": lambda i: f"Setting up monitoring for {i.get('drug_name', '')}…",
+        "generate_discrepancy_report": lambda i: "Generating discrepancy report…",
+    }
+    fn = labels.get(tool_name)
+    return fn(tool_input) if fn else f"Running {tool_name}…"
+
+
+async def handle_message_stream(user_message: str, session_id: str, tenant_id: str):
+    """Async generator that yields SSE event dicts for the streaming endpoint."""
+    history = await memory.retrieve(f"{MEM_CONV_PREFIX}:{session_id}") or []
+    history.append({"role": "user", "content": user_message})
+
+    task_id = await task_manager.create(
+        title=f"Researching: {user_message[:60]}",
+        description=user_message,
+        tenant_id=tenant_id,
+    )
+
+    report: Optional[DiscrepancyReport] = None
+    used_tools = False
+    updated_messages = history  # will be overwritten if tools are called
+
+    try:
+        await task_manager.update(task_id, "running", 10, "Analyzing request…")
+
+        response = await client.messages.create(
+            model=settings.claude_model,
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            messages=history,
+            tools=CLAUDE_TOOLS,
+        )
+
+        loop_count = 0
+        while response.stop_reason == "tool_use" and loop_count < 10:
+            loop_count += 1
+            tool_results = []
+
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+
+                progress = min(20 + loop_count * 15, 85)
+                await task_manager.update(task_id, "running", progress, f"Running: {block.name}")
+
+                yield {"type": "thinking", "step": _tool_step_label(block.name, block.input), "tool": block.name}
+
+                result = await _execute_tool(block.name, block.input, tenant_id, user_message)
+
+                if block.name == "generate_discrepancy_report" and isinstance(result, dict) and "report_id" in result:
+                    report = DiscrepancyReport(**result)
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": json.dumps(result, default=str),
+                })
+
+            updated_messages = history + [
+                {"role": "assistant", "content": response.content},
+                {"role": "user", "content": tool_results},
+            ]
+            used_tools = True
+
+            response = await client.messages.create(
+                model=settings.claude_model,
+                max_tokens=4096,
+                system=SYSTEM_PROMPT,
+                messages=updated_messages,
+                tools=CLAUDE_TOOLS,
+            )
+
+        # Stream the final text answer token by token
+        final_messages = updated_messages if used_tools else history
+        async with client.messages.stream(
+            model=settings.claude_model,
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            messages=final_messages,
+            tools=CLAUDE_TOOLS,
+        ) as stream:
+            full_reply = ""
+            async for chunk in stream.text_stream:
+                full_reply += chunk
+                yield {"type": "text_delta", "delta": chunk}
+
+        history.append({"role": "assistant", "content": full_reply})
+        await memory.store(f"{MEM_CONV_PREFIX}:{session_id}", history[-20:])
+        await task_manager.complete(task_id, {"reply": full_reply, "report_id": report.report_id if report else None})
+
+        yield {
+            "type": "done",
+            "reply": full_reply,
+            "report": report.model_dump() if report else None,
+            "task_id": task_id,
+            "task_status": "complete",
+        }
+
+    except Exception as e:
+        logger.error(f"Stream orchestrator error: {e}", exc_info=True)
+        if task_id:
+            await task_manager.update(task_id, "failed", 0, str(e))
+        yield {"type": "error", "message": str(e)}
+
+
 async def _execute_tool(tool_name: str, tool_input: dict, tenant_id: str, original_query: str) -> dict:
     try:
         if tool_name == "search_knowledge_base":
