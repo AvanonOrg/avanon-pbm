@@ -25,7 +25,7 @@ async def get_pool() -> AsyncConnectionPool:
             settings.supabase_db_url,
             min_size=2,
             max_size=10,
-            kwargs={"row_factory": dict_row},
+            kwargs={"row_factory": dict_row, "prepare_threshold": None},
             open=False,
         )
         await _pool.open()

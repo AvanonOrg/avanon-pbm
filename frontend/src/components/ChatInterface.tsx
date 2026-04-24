@@ -35,22 +35,26 @@ function ThinkingBubble({
   isActive: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [fading, setFading] = useState(false);
+  const [gone, setGone] = useState(false);
 
+  // Fade out 1.2s after streaming stops, then fully remove
   useEffect(() => {
-    if (!isActive && steps.length > 0) {
-      const t = setTimeout(() => setFading(true), 800);
-      return () => clearTimeout(t);
+    if (!isActive) {
+      const fadeTimer = setTimeout(() => setGone(true), 1600);
+      return () => clearTimeout(fadeTimer);
     }
-  }, [isActive, steps.length]);
+  }, [isActive]);
 
-  if (fading && !isActive) return null;
+  if (gone) return null;
 
   const displayStep =
     currentStep ?? (steps.length > 0 ? steps[steps.length - 1].step : "Thinking…");
 
   return (
-    <div className={fading ? "thinking-bubble-done" : ""} style={{ marginBottom: 6 }}>
+    <div
+      className={!isActive ? "thinking-bubble-done" : ""}
+      style={{ marginBottom: 8 }}
+    >
       <button
         onClick={() => steps.length > 0 && setExpanded((v) => !v)}
         style={{
@@ -75,8 +79,11 @@ function ThinkingBubble({
             <span className="thinking-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: "#8e8ea0", display: "inline-block" }} />
           </span>
         )}
+        {!isActive && (
+          <span style={{ fontSize: 12 }}>✓</span>
+        )}
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {displayStep}
+          {isActive ? displayStep : `${steps.length} step${steps.length !== 1 ? "s" : ""} completed`}
         </span>
         {steps.length > 0 && (
           <span style={{ fontSize: 10, opacity: 0.5, flexShrink: 0 }}>
@@ -255,9 +262,9 @@ function MessageRow({ message }: { message: ChatMessage }) {
     );
   }
 
-  const showThinking =
-    message.isStreaming ||
-    ((message.thinkingSteps?.length ?? 0) > 0 && !message.content);
+  // Show thinking bubble whenever there are steps OR still streaming
+  // Keep rendering until ThinkingBubble self-removes after fade
+  const showThinking = message.isStreaming || (message.thinkingSteps?.length ?? 0) > 0;
 
   return (
     <div className="msg-enter" style={{ marginBottom: 24 }}>
@@ -285,6 +292,212 @@ function MessageRow({ message }: { message: ChatMessage }) {
   );
 }
 
+// ── Sidebar ────────────────────────────────────────────────────────────────
+
+function Sidebar({
+  open,
+  onToggle,
+  onNewChat,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  onNewChat: () => void;
+}) {
+  return (
+    <aside
+      style={{
+        width: open ? 240 : 56,
+        background: "#171717",
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+        borderRight: "1px solid #2a2a2a",
+        transition: "width 0.22s ease",
+        overflow: "hidden",
+      }}
+    >
+      {/* Top controls */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "10px 10px",
+          gap: 8,
+          flexShrink: 0,
+        }}
+      >
+        {/* Toggle button */}
+        <SidebarBtn title={open ? "Close sidebar" : "Open sidebar"} onClick={onToggle}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </SidebarBtn>
+        {open && (
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#ececec",
+              whiteSpace: "nowrap",
+              opacity: open ? 1 : 0,
+              transition: "opacity 0.15s ease 0.08s",
+            }}
+          >
+            PBM Intelligence
+          </span>
+        )}
+      </div>
+
+      {/* New chat */}
+      <div style={{ padding: "0 8px 8px" }}>
+        <button
+          onClick={onNewChat}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "none",
+            border: "1px solid #2f2f2f",
+            borderRadius: 8,
+            padding: open ? "8px 10px" : "8px",
+            cursor: "pointer",
+            color: "#8e8ea0",
+            fontSize: 13,
+            textAlign: "left",
+            justifyContent: open ? "flex-start" : "center",
+            transition: "background 0.15s",
+            whiteSpace: "nowrap",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          title="New chat"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          {open && <span>New chat</span>}
+        </button>
+      </div>
+
+      {/* Section label */}
+      {open && (
+        <div style={{ padding: "8px 14px 4px", fontSize: 11, color: "#4a4a4a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+          Recent
+        </div>
+      )}
+
+      {/* Placeholder recent chats */}
+      {open && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px" }}>
+          {["Eliquis spread analysis", "Ozempic PBM pricing", "Humira monitoring setup"].map((label) => (
+            <button
+              key={label}
+              style={{
+                width: "100%",
+                display: "block",
+                background: "none",
+                border: "none",
+                borderRadius: 6,
+                padding: "7px 8px",
+                cursor: "pointer",
+                color: "#8e8ea0",
+                fontSize: 13,
+                textAlign: "left",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                transition: "background 0.12s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Logo / brand at bottom */}
+      <div
+        style={{
+          padding: open ? "12px 14px" : "12px 10px",
+          borderTop: "1px solid #2a2a2a",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            background: "#2a2a2a",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 14,
+            flexShrink: 0,
+          }}
+        >
+          💊
+        </div>
+        {open && (
+          <div style={{ overflow: "hidden" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#ececec", whiteSpace: "nowrap" }}>Avanon</div>
+            <div style={{ fontSize: 11, color: "#4a4a4a", whiteSpace: "nowrap" }}>Pass-Through Intelligence</div>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function SidebarBtn({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        color: "#6b6b6b",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        transition: "background 0.15s, color 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "#2a2a2a";
+        e.currentTarget.style.color = "#ececec";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "none";
+        e.currentTarget.style.color = "#6b6b6b";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 // ── ChatInterface ──────────────────────────────────────────────────────────
 
 export function ChatInterface() {
@@ -299,12 +512,27 @@ export function ChatInterface() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const sessionId = useRef(getOrCreateSession());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handleNewChat = useCallback(() => {
+    localStorage.removeItem(SESSION_KEY);
+    sessionId.current = getOrCreateSession();
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content:
+          "Hello! I'm your PBM Pass-Through Intelligence agent. Ask me to research drug pricing, identify spread pricing discrepancies, or set up monitoring for specific medications.\n\nTry: *\"What's the spread on Eliquis 5mg 60 tablets?\"*",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+  }, []);
 
   const submit = useCallback(
     async (text: string) => {
@@ -338,7 +566,6 @@ export function ChatInterface() {
         await streamMessage(
           text,
           sessionId.current,
-          // onThinking
           (step, tool) => {
             setMessages((prev) =>
               prev.map((m) =>
@@ -355,7 +582,6 @@ export function ChatInterface() {
               )
             );
           },
-          // onDelta
           (delta) => {
             setMessages((prev) =>
               prev.map((m) =>
@@ -363,7 +589,6 @@ export function ChatInterface() {
               )
             );
           },
-          // onDone
           (event) => {
             setMessages((prev) =>
               prev.map((m) =>
@@ -381,7 +606,6 @@ export function ChatInterface() {
               )
             );
           },
-          // onError
           (err) => {
             setMessages((prev) =>
               prev.map((m) =>
@@ -412,56 +636,12 @@ export function ChatInterface() {
   );
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        background: "#212121",
-        overflow: "hidden",
-      }}
-    >
-      {/* Sidebar */}
-      <aside
-        style={{
-          width: 56,
-          background: "#171717",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          padding: "12px 0",
-          gap: 4,
-          flexShrink: 0,
-          borderRight: "1px solid #2a2a2a",
-        }}
-      >
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 8,
-            background: "#2a2a2a",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 16,
-            marginBottom: 8,
-          }}
-        >
-          💊
-        </div>
-        <SidebarBtn title="New chat" onClick={() => {
-          localStorage.removeItem(SESSION_KEY);
-          sessionId.current = getOrCreateSession();
-          setMessages([{
-            id: "welcome",
-            role: "assistant",
-            content: "Hello! I'm your PBM Pass-Through Intelligence agent. Ask me to research drug pricing, identify spread pricing discrepancies, or set up monitoring for specific medications.\n\nTry: *\"What's the spread on Eliquis 5mg 60 tablets?\"*",
-            timestamp: new Date().toISOString(),
-          }]);
-        }}>
-          ✏️
-        </SidebarBtn>
-      </aside>
+    <div style={{ display: "flex", height: "100vh", background: "#212121", overflow: "hidden" }}>
+      <Sidebar
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
+        onNewChat={handleNewChat}
+      />
 
       {/* Main */}
       <main
@@ -507,7 +687,7 @@ export function ChatInterface() {
           <div ref={bottomRef} style={{ height: 16 }} />
         </div>
 
-        {/* Quick prompts */}
+        {/* Quick prompts — disabled while loading */}
         {messages.length <= 1 && (
           <div
             style={{
@@ -523,15 +703,16 @@ export function ChatInterface() {
               <button
                 key={p}
                 onClick={() => submit(p)}
+                disabled={loading}
                 style={{
                   padding: "6px 12px",
                   border: "1px solid #3a3a3a",
                   borderRadius: 999,
                   background: "#2a2a2a",
                   fontSize: 12,
-                  color: "#8e8ea0",
-                  cursor: "pointer",
-                  transition: "border-color 0.15s",
+                  color: loading ? "#4a4a4a" : "#8e8ea0",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  transition: "color 0.15s",
                 }}
               >
                 {p}
@@ -562,40 +743,5 @@ export function ChatInterface() {
         </div>
       </main>
     </div>
-  );
-}
-
-function SidebarBtn({
-  title,
-  onClick,
-  children,
-}: {
-  title: string;
-  onClick?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      title={title}
-      onClick={onClick}
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        color: "#6b6b6b",
-        fontSize: 16,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        transition: "background 0.15s",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-    >
-      {children}
-    </button>
   );
 }
