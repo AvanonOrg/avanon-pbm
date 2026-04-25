@@ -6,7 +6,7 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-NADAC_API = "https://data.cms.gov/api/1/datastore/query/9778fb52-45c2-4df2-94f0-e3f5b50b8a8d/0"
+NADAC_API = "https://data.medicaid.gov/api/1/datastore/query/fbb83258-11c7-47f5-8b18-5f8e79f7e704/0"
 
 
 async def fetch_nadac(drug_name: str, ndc: Optional[str] = None) -> Optional[dict]:
@@ -18,13 +18,21 @@ async def fetch_nadac(drug_name: str, ndc: Optional[str] = None) -> Optional[dic
         params["conditions[0][operator]"] = "="
     else:
         params["conditions[0][property]"] = "ndc_description"
-        params["conditions[0][value]"] = drug_name
+        params["conditions[0][value]"] = f"%{drug_name}%"
         params["conditions[0][operator]"] = "LIKE"
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; AvanonPBM/1.0)",
+        "Accept": "application/json",
+    }
+
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
             response = await client.get(NADAC_API, params=params)
             response.raise_for_status()
+            if not response.content:
+                logger.warning(f"Empty NADAC response for '{drug_name}'")
+                return None
             data = response.json()
             results = data.get("results", [])
             if not results:

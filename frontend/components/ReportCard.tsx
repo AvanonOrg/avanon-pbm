@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { DiscrepancyReport } from "@/lib/types";
+import { downloadReport } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 import PricingTable from "./PricingTable";
 
 interface ReportCardProps {
@@ -8,6 +11,21 @@ interface ReportCardProps {
 }
 
 export default function ReportCard({ report }: ReportCardProps) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  async function handleDownload() {
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      await downloadReport(report, getToken()!);
+    } catch (e) {
+      setDownloadError("PDF generation failed. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="mt-4 bg-[#1e1e1e] border border-[#3f3f3f] rounded-2xl p-5">
       <div className="flex items-start justify-between mb-3">
@@ -41,6 +59,29 @@ export default function ReportCard({ report }: ReportCardProps) {
           <p className="text-sm text-[#a3e8b4]">{report.recommendation}</p>
         </div>
       )}
+
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex items-center gap-2 px-4 py-2 bg-[#ececec] text-[#212121] rounded-lg text-sm font-medium hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {downloading ? (
+            <>
+              <span className="w-3.5 h-3.5 border-2 border-[#212121] border-t-transparent rounded-full animate-spin" />
+              Generating PDF…
+            </>
+          ) : (
+            <>
+              <span>↓</span>
+              Download PDF Report
+            </>
+          )}
+        </button>
+        {downloadError && (
+          <span className="text-xs text-red-400">{downloadError}</span>
+        )}
+      </div>
     </div>
   );
 }

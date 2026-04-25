@@ -23,8 +23,11 @@ async def get_pool() -> AsyncConnectionPool:
     if _pool is None:
         _pool = AsyncConnectionPool(
             settings.supabase_db_url,
-            min_size=2,
+            min_size=0,
             max_size=10,
+            max_lifetime=300,
+            max_idle=60,
+            check=AsyncConnectionPool.check_connection,
             kwargs={"row_factory": dict_row, "prepare_threshold": None},
             open=False,
         )

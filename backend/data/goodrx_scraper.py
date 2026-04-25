@@ -1,65 +1,118 @@
-import asyncio
+"""
+GoodRx price lookup via direct HTTP — no Ruflo browser required.
+GoodRx serves pricing JSON in a <script id="__NEXT_DATA__"> tag.
+Falls back gracefully when unavailable.
+"""
+import json
 import logging
 import re
-from typing import Optional
-from ruflo import browser
+from typing import Any, Optional
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
 GOODRX_BASE = "https://www.goodrx.com"
 
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
-async def scrape_goodrx(drug_name: str, strength: Optional[str] = None, quantity: int = 30) -> Optional[dict]:
-    """Scrape lowest GoodRx price for a drug using ruflo browser tools."""
+
+async def scrape_goodrx(
+    drug_name: str,
+    strength: Optional[str] = None,
+    quantity: int = 30,
+) -> Optional[dict]:
     slug = drug_name.lower().replace(" ", "-").replace("/", "-")
     url = f"{GOODRX_BASE}/{slug}"
 
     try:
-        await browser.open_url(url)
-        await browser.wait(2000)
-        snapshot = await browser.snapshot()
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, headers=_HEADERS) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                logger.warning(f"GoodRx HTTP {resp.status_code} for {drug_name}")
+                return None
 
-        # Try to get text from price elements
-        page_text = await browser.get_text()
+            html = resp.text
 
-        prices = _extract_prices_from_text(page_text)
+            # GoodRx embeds pricing in __NEXT_DATA__ JSON
+            match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+            if match:
+                try:
+                    data = json.loads(match.group(1))
+                    prices = _extract_prices_from_next_data(data)
+                    if prices:
+                        lowest = min(prices)
+                        return {
+                            "drug_name": drug_name,
+                            "source": "goodrx",
+                            "lowest_price": lowest,
+                            "prices_found": prices[:5],
+                            "url": url,
+                            "quantity": quantity,
+                        }
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
-        if not prices:
+            # Fallback: parse dollar amounts from visible text
+            prices = _extract_prices_from_text(html)
+            if prices:
+                lowest = min(prices)
+                return {
+                    "drug_name": drug_name,
+                    "source": "goodrx",
+                    "lowest_price": lowest,
+                    "prices_found": prices[:5],
+                    "url": url,
+                    "quantity": quantity,
+                }
+
             logger.warning(f"No GoodRx prices found for {drug_name}")
-            await browser.close()
             return None
 
-        lowest = min(prices)
-        await browser.close()
-
-        return {
-            "drug_name": drug_name,
-            "source": "goodrx",
-            "lowest_price": lowest,
-            "prices_found": prices,
-            "url": url,
-            "quantity": quantity,
-        }
     except Exception as e:
         logger.error(f"GoodRx scrape failed for '{drug_name}': {e}")
-        try:
-            await browser.close()
-        except Exception:
-            pass
         return None
 
 
-def _extract_prices_from_text(text: str) -> list[float]:
-    """Extract dollar amounts from page text."""
-    pattern = r'\$(\d{1,4}(?:\.\d{2})?)'
-    matches = re.findall(pattern, text)
+def _extract_prices_from_next_data(data: dict) -> list[float]:
+    """Walk the Next.js data tree looking for price-shaped numbers."""
     prices = []
-    for m in matches:
+    _walk(data, prices)
+    return sorted(set(prices))
+
+
+def _walk(obj: Any, out: list) -> None:
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in ("price", "lowestPrice", "discountedPrice", "retailPrice") and isinstance(v, (int, float)):
+                val = float(v)
+                if 1.0 < val < 10000.0:
+                    out.append(round(val, 2))
+            else:
+                _walk(v, out)
+    elif isinstance(obj, list):
+        for item in obj:
+            _walk(item, out)
+
+
+def _extract_prices_from_text(html: str) -> list[float]:
+    pattern = r'\$(\d{1,4}(?:\.\d{2})?)'
+    prices = []
+    for m in re.findall(pattern, html):
         try:
             val = float(m)
-            # Filter out obviously wrong values (< $1 or > $10000 for a prescription)
             if 1.0 < val < 10000.0:
                 prices.append(val)
         except ValueError:
             pass
-    return prices
+    return sorted(set(prices))
+
+

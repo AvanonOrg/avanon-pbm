@@ -1,10 +1,21 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { ChatMessage, ThinkingStep } from "@/lib/types";
 import { getToken, clearToken } from "@/lib/auth";
 import { streamMessage } from "@/lib/api";
+import {
+  getSessionId,
+  setSessionId,
+  getSessions,
+  upsertSessionMeta,
+  getStoredMessages,
+  storeMessages,
+  clearAllHistory,
+  type SessionMeta,
+} from "@/lib/storage";
 import Sidebar from "./Sidebar";
 import MessageRow from "./MessageRow";
 import InputBar from "./InputBar";
@@ -21,18 +32,43 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const sessionId = useRef<string>("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const metaSavedRef = useRef(false);
 
+  // Init: restore session ID + messages from localStorage
   useEffect(() => {
-    // Generate session ID client-side only
-    sessionId.current = crypto.randomUUID();
-
-    // Auth guard
     if (!getToken()) {
       router.replace("/");
+      return;
     }
+
+    let sid = getSessionId();
+    if (!sid) {
+      sid = crypto.randomUUID();
+      setSessionId(sid);
+    }
+    sessionId.current = sid;
+    metaSavedRef.current = false;
+
+    const stored = getStoredMessages(sid);
+    if (stored.length > 0) {
+      setMessages(stored);
+      metaSavedRef.current = true;
+    }
+
+    setSessions(getSessions());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist completed messages to localStorage after each update
+  useEffect(() => {
+    if (!sessionId.current || messages.length === 0) return;
+    const hasStreaming = messages.some((m) => m.isStreaming);
+    if (!hasStreaming) {
+      storeMessages(sessionId.current, messages);
+    }
+  }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -42,6 +78,13 @@ export default function ChatInterface() {
     async (text: string) => {
       const token = getToken();
       if (!token || loading) return;
+
+      // Save session meta on first message of a conversation
+      if (!metaSavedRef.current) {
+        upsertSessionMeta(sessionId.current, text.slice(0, 60));
+        metaSavedRef.current = true;
+        setSessions(getSessions());
+      }
 
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -67,6 +110,11 @@ export default function ChatInterface() {
         );
       }
 
+      // Build history from completed messages (exclude streaming placeholders)
+      const history = messages
+        .filter((m) => !m.isStreaming && m.content.length > 0)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       try {
         await streamMessage(text, sessionId.current, token, {
           onThinking(step, tool) {
@@ -80,11 +128,13 @@ export default function ChatInterface() {
             );
           },
           onDelta(delta) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, content: m.content + delta } : m
-              )
-            );
+            flushSync(() => {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, content: m.content + delta } : m
+                )
+              );
+            });
           },
           onDone(event) {
             updateAssistant({
@@ -101,7 +151,7 @@ export default function ChatInterface() {
               currentThinkingStep: undefined,
             });
           },
-        });
+        }, history);
       } catch {
         updateAssistant({
           isStreaming: false,
@@ -115,8 +165,47 @@ export default function ChatInterface() {
   );
 
   function handleNewChat() {
+    // Save current session before clearing
+    if (messages.length > 0) {
+      storeMessages(sessionId.current, messages);
+      const firstUser = messages.find((m) => m.role === "user");
+      if (firstUser) {
+        upsertSessionMeta(sessionId.current, firstUser.content.slice(0, 60));
+      }
+    }
+
+    const newId = crypto.randomUUID();
+    setSessionId(newId);
+    sessionId.current = newId;
+    metaSavedRef.current = false;
     setMessages([]);
-    sessionId.current = crypto.randomUUID();
+    setSessions(getSessions());
+  }
+
+  function handleSelectSession(sid: string) {
+    if (sid === sessionId.current) return;
+
+    // Persist current session
+    if (messages.length > 0) {
+      storeMessages(sessionId.current, messages);
+    }
+
+    setSessionId(sid);
+    sessionId.current = sid;
+    metaSavedRef.current = true;
+    const stored = getStoredMessages(sid);
+    setMessages(stored);
+    setSessions(getSessions());
+  }
+
+  function handleClearHistory() {
+    clearAllHistory();
+    const newId = crypto.randomUUID();
+    setSessionId(newId);
+    sessionId.current = newId;
+    metaSavedRef.current = false;
+    setMessages([]);
+    setSessions([]);
   }
 
   function handleLogout() {
@@ -130,6 +219,11 @@ export default function ChatInterface() {
         open={sidebarOpen}
         onToggle={() => setSidebarOpen((o) => !o)}
         onNewChat={handleNewChat}
+        onLogout={handleLogout}
+        onClearHistory={handleClearHistory}
+        sessions={sessions}
+        currentSessionId={sessionId.current}
+        onSelectSession={handleSelectSession}
       />
 
       <main className="flex flex-col flex-1 min-w-0 overflow-hidden" style={{ alignItems: "center" }}>
@@ -153,47 +247,46 @@ export default function ChatInterface() {
           </div>
         </div>
 
-        {/* Messages area */}
-        <div className="flex-1 w-full overflow-y-auto no-scrollbar">
-          <div className="max-w-3xl mx-auto px-4 py-6">
-            {messages.length === 0 && (
-              <div className="text-center mt-16 mb-8">
-                <h2 className="text-2xl font-semibold text-[#ececec] mb-2">
-                  PBM Spread Analysis
-                </h2>
-                <p className="text-sm text-[#8e8ea0]">
-                  Ask me to analyze drug pricing, calculate spreads, or set up monitoring.
-                </p>
-              </div>
-            )}
-
-            {messages.map((m) => (
-              <MessageRow key={m.id} message={m} />
-            ))}
-            <div ref={bottomRef} />
-          </div>
-        </div>
-
-        {/* Quick prompts */}
+        {/* Empty state — vertically centred between top bar and input */}
         {messages.length === 0 && (
-          <div className="w-full max-w-3xl px-4 pb-3 flex flex-wrap gap-2 justify-center">
-            {QUICK_PROMPTS.map((p) => (
-              <button
-                key={p}
-                disabled={loading}
-                onClick={() => submit(p)}
-                className="text-xs bg-[#2f2f2f] border border-[#3f3f3f] text-[#8e8ea0] rounded-full px-3 py-1.5 hover:text-[#ececec] hover:border-[#6b6b6b] transition-colors disabled:opacity-50"
-              >
-                {p}
-              </button>
-            ))}
+          <div className="flex-1 w-full flex flex-col items-center justify-center px-4 gap-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold text-[#ececec] mb-2">
+                PBM Spread Analysis
+              </h2>
+              <p className="text-sm text-[#8e8ea0]">
+                Ask me to analyze drug pricing, calculate spreads, or set up monitoring.
+              </p>
+            </div>
+            <div className="w-full max-w-3xl flex flex-wrap gap-2 justify-center">
+              {QUICK_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  disabled={loading}
+                  onClick={() => submit(p)}
+                  className="text-xs bg-[#2f2f2f] border border-[#3f3f3f] text-[#8e8ea0] rounded-full px-3 py-1.5 hover:text-[#ececec] hover:border-[#6b6b6b] transition-colors disabled:opacity-50"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Input bar */}
+        {/* Messages area */}
+        {messages.length > 0 && (
+          <div className="flex-1 w-full overflow-y-auto no-scrollbar">
+            <div className="max-w-3xl mx-auto px-4 py-6">
+              {messages.map((m) => (
+                <MessageRow key={m.id} message={m} />
+              ))}
+              <div ref={bottomRef} />
+            </div>
+          </div>
+        )}
+
         <InputBar onSubmit={submit} disabled={loading} />
 
-        {/* Footer */}
         <p className="text-xs text-[#6b6b6b] pb-3 px-4 text-center">
           Avanon can make mistakes. Verify drug pricing with official sources before making formulary decisions.
         </p>

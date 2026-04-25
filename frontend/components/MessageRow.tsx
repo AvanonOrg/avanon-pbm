@@ -34,7 +34,7 @@ export default function MessageRow({ message }: MessageRowProps) {
 
       <div className={hasThinking && !message.content ? "" : ""}>
         {message.content && <MarkdownRenderer content={message.content} />}
-        {message.isStreaming && <span className="streaming-cursor" />}
+        {message.isStreaming && message.content.length > 0 && <span className="streaming-cursor" />}
       </div>
 
       {message.report && <ReportCard report={message.report} />}

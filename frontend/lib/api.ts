@@ -1,5 +1,27 @@
 import type { StreamEvent } from "./types";
 
+export async function downloadReport(report: object, token: string): Promise<void> {
+  const res = await fetch("/api/pdf", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(report),
+  });
+  if (!res.ok) throw new Error(`PDF generation failed: HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const reportId = (report as { report_id?: string }).report_id ?? "report";
+  a.download = `pbm-report-${reportId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export async function login(email: string, password: string): Promise<string> {
   const res = await fetch("/api/auth/login", {
     method: "POST",
@@ -22,7 +44,8 @@ export async function streamMessage(
     onDelta: (delta: string) => void;
     onDone: (event: Extract<StreamEvent, { type: "done" }>) => void;
     onError: (msg: string) => void;
-  }
+  },
+  history: { role: string; content: string }[] = []
 ): Promise<void> {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
@@ -30,7 +53,7 @@ export async function streamMessage(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, history }),
   });
 
   if (!res.ok || !res.body) {

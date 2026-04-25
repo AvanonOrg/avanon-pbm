@@ -31,7 +31,7 @@ async def chat_stream_sse(
         request.session_id = str(uuid.uuid4())
 
     async def event_generator():
-        async for event in handle_message_stream(request.message, request.session_id, tenant_id):
+        async for event in handle_message_stream(request.message, request.session_id, tenant_id, request.history):
             yield f"data: {json.dumps(event, default=str)}\n\n"
         yield "data: [DONE]\n\n"
 

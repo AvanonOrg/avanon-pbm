@@ -105,6 +105,7 @@ class Conversation(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: str
+    history: list = []
 
 
 class ChatResponse(BaseModel):
