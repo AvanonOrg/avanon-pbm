@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+from config import get_settings
 from api.routes import chat, tasks, reports, auth_routes
 from data.medicaid_report_fetcher import seed_knowledge_base
 from storage.supabase_client import get_pool, close_pool
