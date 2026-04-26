@@ -1,11 +1,14 @@
 from datetime import datetime
 
 FLAG_LABELS = {
-    "LOW": "Low Risk",
-    "MEDIUM": "Medium Risk",
-    "HIGH": "High Risk",
+    "LOW":      "Low Risk",
+    "MEDIUM":   "Medium Risk",
+    "HIGH":     "High Risk",
     "CRITICAL": "Critical",
 }
+
+# Columns that should be right-aligned in the drug table (0-indexed)
+_NUMERIC_COLS = {2, 3, 4, 5, 6, 8}  # Qty, NADAC, Market, Spread$, Spread%, Annual Savings
 
 
 def build_pdf_spec(report: dict) -> dict:
@@ -20,9 +23,30 @@ def build_pdf_spec(report: dict) -> dict:
         except Exception:
             date_str = str(generated_at)[:10]
 
+    # ── KPI metrics ──────────────────────────────────────────────────────────
+    total_savings = report.get("total_annual_savings_100_members", 0) or 0
+    flagged_count = len([d for d in drugs if d.get("flag", "").upper() in ("HIGH", "CRITICAL")])
+    avg_spread    = (
+        sum(d.get("spread_pct", 0) for d in drugs) / len(drugs)
+        if drugs else 0
+    )
+
+    kpi_metrics = [
+        {"label": "Estimated Annual Savings / 100 Members", "value": f"${total_savings:,.0f}"},
+        {"label": "High / Critical Risk Drugs Identified",  "value": str(flagged_count)},
+        {"label": "Average Spread Above NADAC",             "value": f"{avg_spread:.1f}%"},
+    ]
+
+    # ── Drug pricing table ────────────────────────────────────────────────────
     drug_table = {
         "title": "Drug Pricing Analysis — NADAC vs. Market Price",
         "after_section": 0,
+        "landscape": True,
+        "risk_col_index": 7,
+        "risk_flags": [d.get("flag", "LOW") for d in drugs],
+        "right_align_cols": list(_NUMERIC_COLS),
+        "col_widths": [1.78, 0.84, 0.49, 0.84, 0.84, 0.84, 0.69, 0.89, 1.28],
+        "source_note": "Sources: CMS NADAC Weekly File (data.cms.gov); GoodRx market pricing data.",
         "headers": [
             "Drug", "Strength", "Qty",
             "NADAC Cost", "Market Price",
@@ -45,10 +69,13 @@ def build_pdf_spec(report: dict) -> dict:
             f"${d.get('annual_savings_100_members', 0):,.0f}",
         ])
 
+    # ── Charts ────────────────────────────────────────────────────────────────
     spread_chart = {
         "type": "horizontal_bar",
         "title": "Spread Pricing by Drug (% Above NADAC Acquisition Cost)",
         "after_section": 1,
+        "figure_number": "Figure 1",
+        "source_note": "Source: CMS NADAC Weekly File; GoodRx market pricing data.",
         "labels": [d.get("drug_name", "") for d in drugs],
         "datasets": [{"label": "Spread %", "values": [round(d.get("spread_pct", 0), 1) for d in drugs]}],
     }
@@ -57,10 +84,13 @@ def build_pdf_spec(report: dict) -> dict:
         "type": "bar",
         "title": "Estimated Annual Savings per 100 Members (Pass-Through vs. Spread Pricing)",
         "after_section": 2,
+        "figure_number": "Figure 2",
+        "source_note": "Source: Avanon PBM Analytics model; modeled at 30-day supply, 12 months, 100-member cohort.",
         "labels": [d.get("drug_name", "") for d in drugs],
         "datasets": [{"label": "Annual Savings ($)", "values": [round(d.get("annual_savings_100_members", 0)) for d in drugs]}],
     }
 
+    # ── Regulatory citations ───────────────────────────────────────────────────
     citations = [
         f"{d['drug_name']}: {d['medicaid_citation']}"
         for d in drugs if d.get("medicaid_citation")
@@ -88,6 +118,7 @@ def build_pdf_spec(report: dict) -> dict:
             "date": date_str,
             "page_size": "letter",
         },
+        "kpi_metrics": kpi_metrics,
         "executive_summary": (
             f"{report.get('summary', '')}\n\n"
             f"Total Estimated Annual Savings (100 Members): "
@@ -124,6 +155,11 @@ def build_pdf_spec(report: dict) -> dict:
             {
                 "heading": "Regulatory Context",
                 "body": citations_body,
+                "callout": (
+                    "State Medicaid audit records referenced above are public documents available via "
+                    "CMS Medicaid.gov and individual state Freedom of Information Act (FOIA) requests. "
+                    "PBM spread pricing practices are subject to increasing federal and state regulatory scrutiny."
+                ),
             },
             {
                 "heading": "Recommendations",
@@ -132,5 +168,5 @@ def build_pdf_spec(report: dict) -> dict:
         ],
         "tables": [drug_table],
         "charts": [spread_chart, savings_chart],
-        "theme": "navy",
+        "theme": "pharma",
     }

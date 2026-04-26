@@ -31,3 +31,9 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Downloaded fonts (auto-fetched at runtime by font_loader.py)
+backend/lib/fonts/
+
+# Generated test PDFs
+backend/test_*.pdf
