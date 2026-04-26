@@ -305,7 +305,7 @@ async def _tool_fetch_nadac(inputs: dict) -> dict:
 
     result = await fetch_nadac(drug_name, ndc)
     if not result:
-        return {"error": f"NADAC data not found for '{drug_name}'"}
+        return {"found": False, "drug_name": drug_name}
 
     total = calculate_total(result["nadac_per_unit"], quantity)
     return {**result, "quantity": quantity, "nadac_total": total}
@@ -321,7 +321,7 @@ async def _tool_search_prices(inputs: dict) -> dict:
     if direct:
         results["goodrx"] = direct
 
-    return results or {"warning": "GoodRx prices unavailable. Using NADAC as sole pricing benchmark."}
+    return results or {"found": False}
 
 
 async def _tool_create_monitoring(inputs: dict, tenant_id: str) -> dict:

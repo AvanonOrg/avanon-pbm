@@ -18,10 +18,18 @@ _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
+        "Chrome/124.0.6367.201 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
 }
 
 
@@ -89,13 +97,27 @@ def _extract_prices_from_next_data(data: dict) -> list[float]:
     return sorted(set(prices))
 
 
+_PRICE_KEYS = {
+    "price", "lowestPrice", "discountedPrice", "retailPrice",
+    "memberPrice", "cashPrice", "goodrxPrice", "estimatedPrice",
+    "amount", "copay", "copayAmount", "patientCost",
+    "discountPrice", "savings_price", "display_price",
+}
+
 def _walk(obj: Any, out: list) -> None:
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if k in ("price", "lowestPrice", "discountedPrice", "retailPrice") and isinstance(v, (int, float)):
+            if k in _PRICE_KEYS and isinstance(v, (int, float)):
                 val = float(v)
                 if 1.0 < val < 10000.0:
                     out.append(round(val, 2))
+            elif k in _PRICE_KEYS and isinstance(v, str):
+                try:
+                    val = float(v.replace("$", "").replace(",", ""))
+                    if 1.0 < val < 10000.0:
+                        out.append(round(val, 2))
+                except ValueError:
+                    pass
             else:
                 _walk(v, out)
     elif isinstance(obj, list):
