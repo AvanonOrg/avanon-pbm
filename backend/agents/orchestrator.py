@@ -295,7 +295,7 @@ async def _tool_search_kb(inputs: dict) -> dict:
     if medicaid:
         return {"found": True, "medicaid_context": medicaid}
 
-    return {"found": False, "message": "No recent cached data. Fetch fresh data."}
+    return {"found": False}
 
 
 async def _tool_fetch_nadac(inputs: dict) -> dict:
