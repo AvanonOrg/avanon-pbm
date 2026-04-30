@@ -148,3 +148,85 @@ async def get_conversation(session_id: str) -> list:
                 return []
             msgs = row["messages_json"]
             return msgs if isinstance(msgs, list) else json.loads(msgs)
+
+
+# ── Prospects ────────────────────────────────────────────────────────────────
+async def list_prospects(
+    tenant_id: str,
+    pbm: Optional[str] = None,
+    state: Optional[str] = None,
+    plan_type: Optional[str] = None,
+    min_employees: Optional[int] = None,
+    limit: int = 100,
+) -> list:
+    """Return prospects for a tenant sorted by estimated overpayment desc."""
+    pool = await get_pool()
+    where = ["tenant_id = %s"]
+    params: list[Any] = [tenant_id]
+    if pbm:
+        where.append("pbm = %s")
+        params.append(pbm)
+    if state:
+        where.append("UPPER(state) = UPPER(%s)")
+        params.append(state)
+    if plan_type:
+        where.append("plan_type = %s")
+        params.append(plan_type)
+    if min_employees is not None:
+        where.append("employees >= %s")
+        params.append(min_employees)
+    params.append(limit)
+    sql = (
+        "SELECT id, company_name, ein, state, pbm, plan_type, employees, "
+        "annual_drug_spend, estimated_spread_overpayment, cfo_email, chro_email, "
+        "form_5500_year, source, created_at "
+        f"FROM prospects WHERE {' AND '.join(where)} "
+        "ORDER BY estimated_spread_overpayment DESC NULLS LAST LIMIT %s"
+    )
+    async with pool.connection() as conn:
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(sql, tuple(params))
+            return await cur.fetchall()
+
+
+async def get_prospect(prospect_id: str, tenant_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                "SELECT * FROM prospects WHERE id = %s AND tenant_id = %s",
+                (prospect_id, tenant_id),
+            )
+            return await cur.fetchone()
+
+
+async def get_prospects_summary(tenant_id: str) -> dict:
+    """Pipeline metrics: total prospects, total covered lives, total overpayment, by-PBM breakdown."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_prospects,
+                    COALESCE(SUM(employees), 0) AS total_covered_lives,
+                    COALESCE(SUM(annual_drug_spend), 0) AS total_drug_spend,
+                    COALESCE(SUM(estimated_spread_overpayment), 0) AS total_overpayment
+                FROM prospects WHERE tenant_id = %s
+                """,
+                (tenant_id,),
+            )
+            totals = await cur.fetchone() or {}
+            await cur.execute(
+                """
+                SELECT pbm,
+                       COUNT(*) AS prospect_count,
+                       COALESCE(SUM(employees), 0) AS covered_lives,
+                       COALESCE(SUM(estimated_spread_overpayment), 0) AS overpayment
+                FROM prospects WHERE tenant_id = %s
+                GROUP BY pbm ORDER BY overpayment DESC
+                """,
+                (tenant_id,),
+            )
+            by_pbm = await cur.fetchall()
+    return {"totals": totals, "by_pbm": by_pbm}
