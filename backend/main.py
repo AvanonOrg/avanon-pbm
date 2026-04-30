@@ -10,7 +10,7 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from config import get_settings
-from api.routes import chat, tasks, reports, auth_routes
+from api.routes import chat, tasks, reports, auth_routes, prospects
 from data.medicaid_report_fetcher import seed_knowledge_base
 from storage.supabase_client import get_pool, close_pool
 from api.routes.reports import _render_pdf
@@ -47,6 +47,7 @@ app.include_router(auth_routes.router)
 app.include_router(chat.router)
 app.include_router(tasks.router)
 app.include_router(reports.router)
+app.include_router(prospects.router)
 
 
 @app.post("/api/pdf")
