@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import type { SessionMeta } from "@/lib/storage";
 
@@ -35,12 +36,13 @@ export default function Sidebar({
   currentSessionId,
   onSelectSession,
 }: SidebarProps) {
+  const router = useRouter();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({});
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
+
   const width = open ? "220px" : "60px";
 
-  // Reposition popup whenever it opens or sidebar width changes
   useEffect(() => {
     if (!settingsOpen || !settingsBtnRef.current) return;
     const r = settingsBtnRef.current.getBoundingClientRect();
@@ -53,7 +55,6 @@ export default function Sidebar({
     });
   }, [settingsOpen, open]);
 
-  // Close on outside click
   useEffect(() => {
     if (!settingsOpen) return;
     const handler = (e: MouseEvent) => {
@@ -82,8 +83,20 @@ export default function Sidebar({
         </button>
       </div>
 
+      {/* Prospects nav */}
+      <div className="px-3 flex-shrink-0">
+        <button
+          onClick={() => router.push("/prospects")}
+          title="Prospect pipeline"
+          className="flex items-center gap-3 w-full rounded-lg px-2 py-2 text-[#8e8ea0] hover:text-[#ececec] hover:bg-[#2f2f2f] transition-colors"
+        >
+          <span className="text-lg flex-shrink-0">◉</span>
+          {open && <span className="text-sm whitespace-nowrap">Prospects</span>}
+        </button>
+      </div>
+
       {/* History */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-2">
+      <div className="flex-1 overflow-y-auto no-scrollbar px-2 mt-2">
         {!open ? (
           <button
             onClick={onToggle}
@@ -139,7 +152,6 @@ export default function Sidebar({
           <span className="text-lg flex-shrink-0">⚙</span>
           {open && <span className="text-sm whitespace-nowrap">Settings</span>}
         </button>
-
         <button
           onClick={onToggle}
           title={open ? "Collapse sidebar" : "Expand sidebar"}
@@ -150,9 +162,7 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Settings popup — rendered via portal so overflow:hidden can't clip it */}
-      {settingsOpen &&
-        typeof document !== "undefined" &&
+      {settingsOpen && typeof document !== "undefined" &&
         createPortal(
           <div
             style={popupStyle}
@@ -163,14 +173,20 @@ export default function Sidebar({
             </div>
             <button
               onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => { setSettingsOpen(false); onClearHistory(); }}
+              onClick={() => {
+                setSettingsOpen(false);
+                onClearHistory();
+              }}
               className="w-full text-left px-3 py-2 text-sm text-[#8e8ea0] hover:bg-[#2f2f2f] hover:text-[#ececec] transition-colors"
             >
               Clear history
             </button>
             <button
               onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => { setSettingsOpen(false); onLogout(); }}
+              onClick={() => {
+                setSettingsOpen(false);
+                onLogout();
+              }}
               className="w-full text-left px-3 py-2 text-sm text-[#f87171] hover:bg-[#2f2f2f] transition-colors"
             >
               Sign out
